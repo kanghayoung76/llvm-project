@@ -27,6 +27,8 @@
 
 using namespace llvm;
 
+int test_for_enable = 0;
+
 static const Register AllPopRegs[] = {
     RISCV::X1,  RISCV::X8,  RISCV::X9,  RISCV::X18, RISCV::X19,
     RISCV::X20, RISCV::X21, RISCV::X22, RISCV::X23, RISCV::X24,
