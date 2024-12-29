@@ -16,6 +16,7 @@
 #include "llvm/BinaryFormat/Dwarf.h"
 #include "llvm/CodeGen/MachineFrameInfo.h"
 #include "llvm/CodeGen/MachineFunction.h"
+#include "llvm/CodeGen/MachineModuleInfo.h"
 #include "llvm/CodeGen/MachineInstrBuilder.h"
 #include "llvm/CodeGen/MachineRegisterInfo.h"
 #include "llvm/CodeGen/RegisterScavenging.h"
@@ -31,6 +32,8 @@ static const Register AllPopRegs[] = {
     RISCV::X1,  RISCV::X8,  RISCV::X9,  RISCV::X18, RISCV::X19,
     RISCV::X20, RISCV::X21, RISCV::X22, RISCV::X23, RISCV::X24,
     RISCV::X25, RISCV::X26, RISCV::X27};
+
+//extern void _sfk_shadow_stack(void);
 
 // For now we use x3, a.k.a gp, as pointer to shadow call stack.
 // User should not use x3 in their asm.
@@ -69,6 +72,26 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
       .addReg(SCSPReg)
       .addImm(-SlotSize)
       .setMIFlag(MachineInstr::FrameSetup);
+
+  Function &F = MF.getFunction();
+  if (F.getName() == "sfk_mapping"){
+	llvm::errs() << "aaa\n";
+	BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
+    		.addReg(RISCV::X10)
+    		.addReg(RISCV::X0)
+    		.addImm(21);   
+        BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
+    		.addReg(RISCV::X11)
+                .addReg(SCSPReg)
+                .addImm(-SlotSize);
+	BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+		.addExternalSymbol(MF.createExternalSymbolName("addi    a2, ra, 0"))
+    		.addImm(1)
+              	.addExternalSymbol("");
+          BuildMI(MBB, MI, DL, TII->get(RISCV::PseudoCALL))
+              .addExternalSymbol("_genesis_entry", RISCVII::MO_CALL)
+	      .setMIFlag(MachineInstr::FrameSetup);
+  }
 
   // Emit a CFI instruction that causes SlotSize to be subtracted from the value
   // of the shadow stack pointer when unwinding past this frame.
