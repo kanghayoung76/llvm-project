@@ -23,8 +23,13 @@
 #include "llvm/IR/DiagnosticInfo.h"
 #include "llvm/MC/MCDwarf.h"
 #include "llvm/Support/LEB128.h"
+#include "llvm/IR/Module.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/DebugInfoMetadata.h"
 
 #include <algorithm>
+#include <vector>
+#include <string>
 
 using namespace llvm;
 
@@ -67,31 +72,61 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
       .addReg(SCSPReg)
       .addImm(SlotSize)
       .setMIFlag(MachineInstr::FrameSetup);
+/*
   BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
       .addReg(RAReg)
       .addReg(SCSPReg)
       .addImm(-SlotSize)
       .setMIFlag(MachineInstr::FrameSetup);
+*/
 
+/*
+    std::vector<std::string> substrings = {
+        "early", "init", "shadow", "mem", "kernel", "cpu", "mutex", "vm", "set", "task", "irq", "pr", "inner", "kaslr", "boot", "console", "fdt", "trap", "do", "_", "str",
+    };
+*/
   Function &F = MF.getFunction();
-  if (F.getName() == "sfk_mapping"){
-	llvm::errs() << "aaa\n";
-	BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
-    		.addReg(RISCV::X10)
-    		.addReg(RISCV::X0)
-    		.addImm(21);   
-        BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
-    		.addReg(RISCV::X11)
-                .addReg(SCSPReg)
-                .addImm(-SlotSize);
-	BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-		.addExternalSymbol(MF.createExternalSymbolName("addi    a2, ra, 0"))
-    		.addImm(1)
-              	.addExternalSymbol("");
-          BuildMI(MBB, MI, DL, TII->get(RISCV::PseudoCALL))
-              .addExternalSymbol("_genesis_entry", RISCVII::MO_CALL)
-	      .setMIFlag(MachineInstr::FrameSetup);
-  }
+    std::vector<std::string> substrings = {
+	"a","d","e","h","i","k","l","m","n","o","p","s","O","I"
+    };
+
+
+        bool found = false;
+    	for (const auto& substring : substrings) {
+        	if (F.getName().find(substring) != std::string::npos) {
+            		found = true;
+            		break;
+                }
+       }
+
+      if (!found || F.getName() == "sfk_mapping"){
+  
+		llvm::errs() << F.getName() << "--------------\n";
+	  	BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
+    			.addReg(RISCV::X10)
+    			.addReg(RISCV::X0)
+    			.addImm(21);   
+          	BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
+    			.addReg(RISCV::X11)
+                	.addReg(SCSPReg)
+                	.addImm(-SlotSize);
+	  	BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+			.addExternalSymbol(MF.createExternalSymbolName("addi    a2, ra, 0"))
+    			.addImm(1)
+              		.addExternalSymbol("");
+          	BuildMI(MBB, MI, DL, TII->get(RISCV::PseudoCALL))
+                	.addExternalSymbol("_genesis_entry", RISCVII::MO_CALL)
+	         	.setMIFlag(MachineInstr::FrameSetup);
+    }
+    else{
+  		BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
+      			.addReg(RAReg)
+      			.addReg(SCSPReg)
+      			.addImm(-SlotSize)
+      			.setMIFlag(MachineInstr::FrameSetup);
+
+    }
+
 
   // Emit a CFI instruction that causes SlotSize to be subtracted from the value
   // of the shadow stack pointer when unwinding past this frame.
@@ -137,6 +172,24 @@ static void emitSCSEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
   // Load return address from shadow call stack
   // l[w|d]  ra, -[4|8](gp)
   // addi    gp, gp, -[4|8]
+
+      Function &F = MF.getFunction();
+      if (F.getName() == "sfk_mapping"){
+
+                llvm::errs() << F.getName() << "--------------\n";
+                BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
+                        .addReg(RISCV::X10)
+                        .addReg(RISCV::X0)
+                        .addImm(22);
+                BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
+                        .addReg(RISCV::X11)
+                        .addReg(SCSPReg)
+                        .addImm(-SlotSize);
+                BuildMI(MBB, MI, DL, TII->get(RISCV::PseudoCALL))
+                        .addExternalSymbol("_genesis_entry", RISCVII::MO_CALL)
+                        .setMIFlag(MachineInstr::FrameDestroy);
+    }
+
   BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
       .addReg(RAReg, RegState::Define)
       .addReg(SCSPReg)
@@ -147,6 +200,8 @@ static void emitSCSEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
       .addReg(SCSPReg)
       .addImm(-SlotSize)
       .setMIFlag(MachineInstr::FrameDestroy);
+
+
   // Restore the SCS pointer
   unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createRestore(
       nullptr, STI.getRegisterInfo()->getDwarfRegNum(SCSPReg, /*IsEH*/ true)));
