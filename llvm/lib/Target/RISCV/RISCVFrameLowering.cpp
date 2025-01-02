@@ -80,12 +80,22 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
 
 /*
     std::vector<std::string> substrings = {
-        "early", "init", "shadow", "mem", "kernel", "cpu", "mutex", "vm", "set", "task", "irq", "pr", "inner", "kaslr", "boot", "console", "fdt", "trap", "do", "_", "str",
+        "early", "init", "shadow", "mem", "kernel", "cpu", "mutex","set", "task", "irq", "pr", "inner", "kaslr", "console", "fdt", "trap", "str",
     };
 */
   Function &F = MF.getFunction();
     std::vector<std::string> substrings = {
-	"a","e","i","m","o","p","s", "HAS_UNMAPPED_ID"
+	"a",
+	"e",
+	"inner_handler",
+	"_genesis", 
+	"setup_vm", 
+	"mapping", 
+	"mem",
+	"str", 
+	"satp",
+	"s", 
+	"i"
     };
 
 
@@ -98,25 +108,56 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
        }
 
       if (!found){
+//      if(F.getName() == "genesis_zone_set_readonly"){
+                BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
+                        .addReg(RISCV::X2)
+                        .addReg(RISCV::X2)
+                        .addImm(-16);
+		  BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
+		      .addReg(RISCV::X10)
+		      .addReg(RISCV::X2)
+		      .addImm(0)
+		      .setMIFlag(MachineInstr::FrameSetup);
+                  BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
+                      .addReg(RISCV::X11)
+                      .addReg(RISCV::X2)
+                      .addImm(8)
+                      .setMIFlag(MachineInstr::FrameSetup);
+
+
   
 		llvm::errs() << F.getName() << "--------------\n";
-/*
 	  	BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
     			.addReg(RISCV::X10)
     			.addReg(RISCV::X0)
-    			.addImm(21);   
-          	BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
-    			.addReg(RISCV::X10)
-                	.addReg(SCSPReg)
-                	.addImm(-SlotSize);
-*/
+    			.addImm(20);   
 	  	BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-			.addExternalSymbol(MF.createExternalSymbolName("addi    a0, ra, 0"))
+			.addExternalSymbol(MF.createExternalSymbolName("addi    a1, ra, 0"))
     			.addImm(1)
               		.addExternalSymbol("");
           	BuildMI(MBB, MI, DL, TII->get(RISCV::PseudoCALL))
-                	.addExternalSymbol("_genesis_shadow_call", RISCVII::MO_CALL)
+                	.addExternalSymbol("_genesis_entry", RISCVII::MO_CALL)
 	         	.setMIFlag(MachineInstr::FrameSetup);
+
+
+
+  		BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
+		      .addReg(RISCV::X10, RegState::Define)
+		      .addReg(RISCV::X2)
+		      .addImm(0)
+		      .setMIFlag(MachineInstr::FrameSetup);
+                BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
+                      .addReg(RISCV::X11, RegState::Define)
+                      .addReg(RISCV::X2)
+                      .addImm(8)
+                      .setMIFlag(MachineInstr::FrameSetup);
+                BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
+                        .addReg(RISCV::X2)
+                        .addReg(RISCV::X2)
+                        .addImm(16);
+
+
+
     }
 /*
     else{
@@ -173,21 +214,6 @@ static void emitSCSEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
   // Load return address from shadow call stack
   // l[w|d]  ra, -[4|8](gp)
   // addi    gp, gp, -[4|8]
-/*
-  Function &F = MF.getFunction();
-                llvm::errs() << F.getName() << "--------------\n";
-                BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
-                        .addReg(RISCV::X10)
-                        .addReg(RISCV::X0)
-                        .addImm(22);
-                BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
-                        .addReg(RISCV::X11)
-                        .addReg(SCSPReg)
-                        .addImm(-SlotSize);
-                BuildMI(MBB, MI, DL, TII->get(RISCV::PseudoCALL))
-                        .addExternalSymbol("_genesis_entry", RISCVII::MO_CALL)
-                        .setMIFlag(MachineInstr::FrameDestroy);
-*/
 
   BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
       .addReg(RAReg, RegState::Define)
