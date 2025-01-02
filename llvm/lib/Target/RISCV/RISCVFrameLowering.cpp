@@ -61,6 +61,7 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
   // Store return address to shadow call stack
   // addi    gp, gp, [4|8]
   // s[w|d]  ra, -[4|8](gp)
+/*
   BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
       .addReg(SCSPReg, RegState::Define)
       .addReg(SCSPReg)
@@ -71,6 +72,39 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
       .addReg(SCSPReg)
       .addImm(-SlotSize)
       .setMIFlag(MachineInstr::FrameSetup);
+*/
+
+
+  Function &sfk = MF.getFunction();
+  auto F = MF.getName();
+
+  std::vector<std::string> keywords = {"map", "mem", "csr", "virt", "setup_vm", "pmd", "pgd", "copy_data", "pte","pud","pmd"};
+
+    bool found = false;
+
+    for (const auto& keyword : keywords) {
+        if (F.find(keyword) != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+
+//  if (!found){
+  if (sfk.getName() == "genesis_zone_set_readonly"){
+	llvm::errs() << "---------" << sfk.getName() <<"\n";
+	BuildMI(MBB, MI, DL, TII->get(RISCV::LUI), RISCV::X3)
+    		.addImm(0x10000);
+
+	BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI), RISCV::X3)
+    		.addReg(RISCV::X3)
+    		.addImm(0x0);  
+
+  	BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::HSV_D : RISCV::HSV_W))
+        	.addReg(RAReg)
+        	.addReg(RISCV::X3)
+        	.setMIFlag(MachineInstr::FrameSetup);
+  }
+
 
   // Emit a CFI instruction that causes SlotSize to be subtracted from the value
   // of the shadow stack pointer when unwinding past this frame.
@@ -116,6 +150,7 @@ static void emitSCSEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
   // Load return address from shadow call stack
   // l[w|d]  ra, -[4|8](gp)
   // addi    gp, gp, -[4|8]
+/*
   BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
       .addReg(RAReg, RegState::Define)
       .addReg(SCSPReg)
@@ -126,6 +161,7 @@ static void emitSCSEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
       .addReg(SCSPReg)
       .addImm(-SlotSize)
       .setMIFlag(MachineInstr::FrameDestroy);
+*/
   // Restore the SCS pointer
   unsigned CFIIndex = MF.addFrameInst(MCCFIInstruction::createRestore(
       nullptr, STI.getRegisterInfo()->getDwarfRegNum(SCSPReg, /*IsEH*/ true)));
@@ -460,6 +496,7 @@ void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
   auto *RVFI = MF.getInfo<RISCVMachineFunctionInfo>();
   const RISCVRegisterInfo *RI = STI.getRegisterInfo();
   const RISCVInstrInfo *TII = STI.getInstrInfo();
+  int64_t SlotSize = STI.getXLen() / 8;
   MachineBasicBlock::iterator MBBI = MBB.begin();
 
   Register FPReg = getFPReg(STI);
@@ -477,6 +514,35 @@ void RISCVFrameLowering::emitPrologue(MachineFunction &MF,
 
   // Emit prologue for shadow call stack.
   emitSCSPrologue(MF, MBB, MBBI, DL);
+
+
+  Function &sfk = MF.getFunction();
+  auto F = MF.getName();
+
+  std::vector<std::string> keywords = {"map", "mem", "csr", "virt", "setup_vm", "pmd", "pgd", "copy_data", "pte","pud","pmd"};
+
+    bool found = false;
+
+    for (const auto& keyword : keywords) {
+        if (F.find(keyword) != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+  //if (!found){
+  if (sfk.getName() == "genesis_zone_set_readonly"){
+  	BuildMI(MBB, MBBI, DL, TII->get(RISCV::ADDI))
+      		.addReg(RISCV::X3, RegState::Define)
+      		.addReg(RISCV::X3)
+      		.addImm(SlotSize)
+      		.setMIFlag(MachineInstr::FrameSetup);
+        llvm::errs() << "---------" << sfk.getName() <<"\n";
+        BuildMI(MBB, MBBI, DL, TII->get(RISCV::HSV_D))
+                .addReg(RISCV::X1)
+                .addReg(RISCV::X3)
+                .setMIFlag(MachineInstr::FrameSetup);
+  }
+
 
   auto FirstFrameSetup = MBBI;
 
@@ -698,6 +764,7 @@ void RISCVFrameLowering::emitEpilogue(MachineFunction &MF,
   auto *RVFI = MF.getInfo<RISCVMachineFunctionInfo>();
   Register FPReg = getFPReg(STI);
   Register SPReg = getSPReg(STI);
+  int64_t SlotSize = STI.getXLen() / 8;
 
   // All calls are tail calls in GHC calling conv, and functions have no
   // prologue/epilogue.
@@ -791,6 +858,36 @@ void RISCVFrameLowering::emitEpilogue(MachineFunction &MF,
 
   // Emit epilogue for shadow call stack.
   emitSCSEpilogue(MF, MBB, MBBI, DL);
+  Function &sfk = MF.getFunction();
+  auto F = MF.getName();
+  const RISCVInstrInfo *TII = STI.getInstrInfo();
+
+  std::vector<std::string> keywords = {"map", "mem", "csr", "virt", "setup_vm", "pmd", "pgd", "copy_data", "pte","pud","pmd"};
+
+    bool found = false;
+
+    for (const auto& keyword : keywords) {
+        if (F.find(keyword) != std::string::npos) {
+            found = true;
+            break;
+        }
+    }
+  //if (!found){
+  if (sfk.getName() == "genesis_zone_set_readonly"){
+        llvm::errs() << "---------" << sfk.getName() <<"\n";
+/*
+        BuildMI(MBB, MBBI, DL, TII->get(RISCV::HLV_D))
+                .addReg(RISCV::X1)
+                .addReg(RISCV::X3)
+                .setMIFlag(MachineInstr::FrameSetup);
+*/
+    	BuildMI(MBB, MBBI, DL, TII->get(RISCV::ADDI))
+        	.addReg(RISCV::X3, RegState::Define)
+        	.addReg(RISCV::X3)
+        	.addImm(-SlotSize)
+        	.setMIFlag(MachineInstr::FrameDestroy);
+  }
+
 }
 
 StackOffset
