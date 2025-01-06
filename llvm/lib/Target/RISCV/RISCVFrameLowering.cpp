@@ -36,7 +36,7 @@ using namespace llvm;
 static const Register AllPopRegs[] = {
     RISCV::X1,  RISCV::X8,  RISCV::X9,  RISCV::X18, RISCV::X19,
     RISCV::X20, RISCV::X21, RISCV::X22, RISCV::X23, RISCV::X24,
-    RISCV::X25, RISCV::X26, RISCV::X27};
+    RISCV::X25, RISCV::X26, RISCV::X27, RISCV::X31};
 
 //extern void _sfk_shadow_stack(void);
 
@@ -67,93 +67,77 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
   // Store return address to shadow call stack
   // addi    gp, gp, [4|8]
   // s[w|d]  ra, -[4|8](gp)
-  BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
-      .addReg(SCSPReg, RegState::Define)
-      .addReg(SCSPReg)
-      .addImm(SlotSize)
-      .setMIFlag(MachineInstr::FrameSetup);
-
+  /*
   Function &F = MF.getFunction();
-    std::vector<std::string> substrings = {
-	"inner_handler",
-	"custom_memset",
-	"custom_memcpy",
-	"_genesis_shadow_prol",
-	"mapping",
-    };
+  if(F.getName() != "setup_vm"){
+    BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
+        .addReg(SCSPReg, RegState::Define)
+        .addReg(SCSPReg)
+        .addImm(SlotSize)
+        .setMIFlag(MachineInstr::FrameSetup);
+    BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
+        .addReg(RAReg)
+        .addReg(SCSPReg)
+        .addImm(-SlotSize)
+        .setMIFlag(MachineInstr::FrameSetup);
+  }
+  else{
+  */
+    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+	.addExternalSymbol(MF.createExternalSymbolName("li t6, 0xffffffd660000000"))
+    	.addImm(1)
+        .addExternalSymbol("");
+    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+        .addExternalSymbol(MF.createExternalSymbolName("li t5, 0xffffffd640000000"))
+        .addImm(1)
+        .addExternalSymbol("");
+    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+        .addExternalSymbol(MF.createExternalSymbolName("bltu gp, t5, 10"))
+        .addImm(1)
+        .addExternalSymbol("");
+    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+        .addExternalSymbol(MF.createExternalSymbolName("bgeu gp, t6, 6"))
+        .addImm(1)
+        .addExternalSymbol("");
+    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+        .addExternalSymbol(MF.createExternalSymbolName("j 10"))
+        .addImm(1)
+        .addExternalSymbol("");
+    BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
+        .addReg(SCSPReg, RegState::Define)
+        .addReg(SCSPReg)
+        .addImm(SlotSize)
+        .setMIFlag(MachineInstr::FrameSetup);
+    BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
+        .addReg(RAReg)
+        .addReg(SCSPReg)
+        .addImm(-SlotSize)
+        .setMIFlag(MachineInstr::FrameSetup);
+    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+        .addExternalSymbol(MF.createExternalSymbolName("j 18"))
+        .addImm(1)
+        .addExternalSymbol("");
+    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+        .addExternalSymbol(MF.createExternalSymbolName("li t6, 0xffffffff"))
+        .addImm(1)
+        .addExternalSymbol("");
+    BuildMI(MBB, MI, DL, TII->get(RISCV::AND))
+        .addReg(RISCV::X31, RegState::Define)
+        .addReg(SCSPReg)
+        .addReg(RISCV::X31)
+        .setMIFlag(MachineInstr::FrameSetup);
+    BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::HSV_D : RISCV::HSV_W))
+        .addReg(RAReg)
+        .addReg(RISCV::X31)
+        .setMIFlag(MachineInstr::FrameSetup);
+    BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
+        .addReg(SCSPReg, RegState::Define)
+        .addReg(SCSPReg)
+        .addImm(SlotSize)
+        .setMIFlag(MachineInstr::FrameSetup);
+  //}
 
 
-        bool found = false;
-    	for (const auto& substring : substrings) {
-        	if (F.getName().find(substring) != std::string::npos) {
-            		found = true;
-            		break;
-                }
-       }
-
-     if (!found){
-   //   if(F.getName() == "debug_vm_pgtable"){
-      /*
-	        BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
-		      .addReg(RAReg)
-		      .addReg(SCSPReg)
-		      .addImm(-SlotSize)
-		      .setMIFlag(MachineInstr::FrameSetup);
-*/
-                BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
-                        .addReg(RISCV::X2)
-                        .addReg(RISCV::X2)
-                        .addImm(-16);
-		  BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
-		      .addReg(RISCV::X10)
-		      .addReg(RISCV::X2)
-		      .addImm(0)
-		      .setMIFlag(MachineInstr::FrameSetup);
-                  BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
-                      .addReg(RISCV::X11)
-                      .addReg(RISCV::X2)
-                      .addImm(8)
-                      .setMIFlag(MachineInstr::FrameSetup);
-
-
-  
-	  	BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
-    			.addReg(RISCV::X10)
-    			.addReg(RISCV::X0)
-    			.addImm(20);   
-	  	BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-			.addExternalSymbol(MF.createExternalSymbolName("addi    a1, ra, 0"))
-    			.addImm(1)
-              		.addExternalSymbol("");
-          	BuildMI(MBB, MI, DL, TII->get(RISCV::PseudoCALL))
-                	.addExternalSymbol("_genesis_entry", RISCVII::MO_CALL)
-	         	.setMIFlag(MachineInstr::FrameSetup);
-
-
-
-  		BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
-		      .addReg(RISCV::X10, RegState::Define)
-		      .addReg(RISCV::X2)
-		      .addImm(0)
-		      .setMIFlag(MachineInstr::FrameSetup);
-                BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
-                      .addReg(RISCV::X11, RegState::Define)
-                      .addReg(RISCV::X2)
-                      .addImm(8)
-		      .setMIFlag(MachineInstr::FrameSetup);
-                BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
-                        .addReg(RISCV::X2)
-                        .addReg(RISCV::X2)
-                        .addImm(16);
-
-    }
-    else{
-	      BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
-		      .addReg(RAReg)
-		      .addReg(SCSPReg)
-		      .addImm(-SlotSize)
-		      .setMIFlag(MachineInstr::FrameSetup);
-    }
 
   // Emit a CFI instruction that causes SlotSize to be subtracted from the value
   // of the shadow stack pointer when unwinding past this frame.
