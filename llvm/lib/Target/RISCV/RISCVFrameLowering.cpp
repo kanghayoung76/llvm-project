@@ -84,23 +84,15 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
   else{
   */
     BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-	.addExternalSymbol(MF.createExternalSymbolName("li t6, 0xffffffd660000000"))
+	.addExternalSymbol(MF.createExternalSymbolName("li t6, 0x80000000"))
     	.addImm(1)
         .addExternalSymbol("");
+    BuildMI(MBB, MI, DL, TII->get(RISCV::AND))
+        .addReg(RISCV::X31, RegState::Define)
+        .addReg(SCSPReg)
+        .addReg(RISCV::X31);
     BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-        .addExternalSymbol(MF.createExternalSymbolName("li t5, 0xffffffd640000000"))
-        .addImm(1)
-        .addExternalSymbol("");
-    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-        .addExternalSymbol(MF.createExternalSymbolName("bltu gp, t5, 10"))
-        .addImm(1)
-        .addExternalSymbol("");
-    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-        .addExternalSymbol(MF.createExternalSymbolName("bgeu gp, t6, 6"))
-        .addImm(1)
-        .addExternalSymbol("");
-    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-        .addExternalSymbol(MF.createExternalSymbolName("j 10"))
+        .addExternalSymbol(MF.createExternalSymbolName("beqz t6, 12"))
         .addImm(1)
         .addExternalSymbol("");
     BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
