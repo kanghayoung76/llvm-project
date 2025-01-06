@@ -67,9 +67,6 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
   // Store return address to shadow call stack
   // addi    gp, gp, [4|8]
   // s[w|d]  ra, -[4|8](gp)
-  /*
-  Function &F = MF.getFunction();
-  if(F.getName() != "setup_vm"){
     BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
         .addReg(SCSPReg, RegState::Define)
         .addReg(SCSPReg)
@@ -80,56 +77,6 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
         .addReg(SCSPReg)
         .addImm(-SlotSize)
         .setMIFlag(MachineInstr::FrameSetup);
-  }
-  else{
-  */
-    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-	.addExternalSymbol(MF.createExternalSymbolName("li t6, 0x80000000"))
-    	.addImm(1)
-        .addExternalSymbol("");
-    BuildMI(MBB, MI, DL, TII->get(RISCV::AND))
-        .addReg(RISCV::X31, RegState::Define)
-        .addReg(SCSPReg)
-        .addReg(RISCV::X31);
-    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-        .addExternalSymbol(MF.createExternalSymbolName("beqz t6, 12"))
-        .addImm(1)
-        .addExternalSymbol("");
-    BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
-        .addReg(SCSPReg, RegState::Define)
-        .addReg(SCSPReg)
-        .addImm(SlotSize)
-        .setMIFlag(MachineInstr::FrameSetup);
-    BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
-        .addReg(RAReg)
-        .addReg(SCSPReg)
-        .addImm(-SlotSize)
-        .setMIFlag(MachineInstr::FrameSetup);
-    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-        .addExternalSymbol(MF.createExternalSymbolName("j 18"))
-        .addImm(1)
-        .addExternalSymbol("");
-    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-        .addExternalSymbol(MF.createExternalSymbolName("li t6, 0xffffffff"))
-        .addImm(1)
-        .addExternalSymbol("");
-    BuildMI(MBB, MI, DL, TII->get(RISCV::AND))
-        .addReg(RISCV::X31, RegState::Define)
-        .addReg(SCSPReg)
-        .addReg(RISCV::X31)
-        .setMIFlag(MachineInstr::FrameSetup);
-    BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::HSV_D : RISCV::HSV_W))
-        .addReg(RAReg)
-        .addReg(RISCV::X31)
-        .setMIFlag(MachineInstr::FrameSetup);
-    BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
-        .addReg(SCSPReg, RegState::Define)
-        .addReg(SCSPReg)
-        .addImm(SlotSize)
-        .setMIFlag(MachineInstr::FrameSetup);
-  //}
-
-
 
   // Emit a CFI instruction that causes SlotSize to be subtracted from the value
   // of the shadow stack pointer when unwinding past this frame.
