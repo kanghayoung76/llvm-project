@@ -78,7 +78,7 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
 	"inner_handler",
 	"custom_memset",
 	"custom_memcpy",
-	"_genesis_shadow_prol",
+	"_genesis",
 	"mapping",
     };
 
@@ -92,14 +92,15 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
        }
 
      if (!found){
-   //   if(F.getName() == "debug_vm_pgtable"){
-      /*
+//      if(F.getName() == "debug_vm_pgtable"){
+/*      
 	        BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
 		      .addReg(RAReg)
 		      .addReg(SCSPReg)
 		      .addImm(-SlotSize)
 		      .setMIFlag(MachineInstr::FrameSetup);
-*/
+		      */
+
                 BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
                         .addReg(RISCV::X2)
                         .addReg(RISCV::X2)
