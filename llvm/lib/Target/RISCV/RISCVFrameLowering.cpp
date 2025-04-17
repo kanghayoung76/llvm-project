@@ -83,27 +83,44 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
   }
   else{
   */
-    BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
+  BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
         .addReg(RISCV::X2, RegState::Define)
         .addReg(RISCV::X2)
-        .addImm(-SlotSize)
+        .addImm(-SlotSize *2)
         .setMIFlag(MachineInstr::FrameSetup);
     BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
         .addReg(RISCV::X31)
         .addReg(RISCV::X2)
         .addImm(0)
         .setMIFlag(MachineInstr::FrameSetup);
+    BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
+        .addReg(RISCV::X30)
+        .addReg(RISCV::X2)
+        .addImm(8)
+        .setMIFlag(MachineInstr::FrameSetup);
 
     BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-        .addExternalSymbol(MF.createExternalSymbolName("li t6, 0x80000000"))
+	.addExternalSymbol(MF.createExternalSymbolName("li t6, 0xffffffd660000000"))
+    	.addImm(1)
+        .addExternalSymbol("");
+    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+        .addExternalSymbol(MF.createExternalSymbolName("li t5, 0xffffffd640000000"))
         .addImm(1)
         .addExternalSymbol("");
-    BuildMI(MBB, MI, DL, TII->get(RISCV::AND))
-        .addReg(RISCV::X31, RegState::Define)
-        .addReg(SCSPReg)
-        .addReg(RISCV::X31);
     BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-        .addExternalSymbol(MF.createExternalSymbolName("beqz t6, 1f"))
+        .addExternalSymbol(MF.createExternalSymbolName("bltu gp, t5, 3f"))
+        .addImm(1)
+        .addExternalSymbol("");
+    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+        .addExternalSymbol(MF.createExternalSymbolName("bgeu gp, t6, 3f"))
+        .addImm(1)
+        .addExternalSymbol("");
+    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+        .addExternalSymbol(MF.createExternalSymbolName("j 1f"))
+        .addImm(1)
+        .addExternalSymbol("");
+    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+        .addExternalSymbol(MF.createExternalSymbolName("3:"))
         .addImm(1)
         .addExternalSymbol("");
     BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
@@ -120,14 +137,25 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
         .addExternalSymbol(MF.createExternalSymbolName("j 2f"))
         .addImm(1)
         .addExternalSymbol("");
+
     BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-        .addExternalSymbol(MF.createExternalSymbolName("1: li t6, 0xffffffff"))
+        .addExternalSymbol(MF.createExternalSymbolName("1:"))
+        .addImm(1)
+        .addExternalSymbol("");
+    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+        .addExternalSymbol(MF.createExternalSymbolName("li t6, 0xffffffff"))
+        //.addExternalSymbol(MF.createExternalSymbolName("1: li t6, 0xffffffff"))
         .addImm(1)
         .addExternalSymbol("");
     BuildMI(MBB, MI, DL, TII->get(RISCV::AND))
         .addReg(RISCV::X31, RegState::Define)
         .addReg(SCSPReg)
         .addReg(RISCV::X31)
+        .setMIFlag(MachineInstr::FrameSetup);
+    BuildMI(MBB, MI, DL, TII->get(RISCV::ANDI))
+        .addReg(RISCV::X31, RegState::Define)
+        .addReg(RISCV::X31)
+        .addImm(-SlotSize)
         .setMIFlag(MachineInstr::FrameSetup);
     BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::HSV_D : RISCV::HSV_W))
         .addReg(RAReg)
@@ -138,69 +166,27 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
         .addReg(SCSPReg)
         .addImm(SlotSize)
         .setMIFlag(MachineInstr::FrameSetup);
+
     BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
         .addExternalSymbol(MF.createExternalSymbolName("2:"))
         .addImm(1)
         .addExternalSymbol("");
-
     BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
         .addReg(RISCV::X31)
         .addReg(RISCV::X2)
         .addImm(0)
         .setMIFlag(MachineInstr::FrameSetup);
+    BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
+        .addReg(RISCV::X30)
+        .addReg(RISCV::X2)
+        .addImm(8)
+        .setMIFlag(MachineInstr::FrameSetup);
     BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
         .addReg(RISCV::X2, RegState::Define)
         .addReg(RISCV::X2)
-        .addImm(SlotSize)
-        .setMIFlag(MachineInstr::FrameSetup);
-
-/*
-    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-	.addExternalSymbol(MF.createExternalSymbolName("li t6, 0x80000000"))
-    	.addImm(1)
-        .addExternalSymbol("");
-    BuildMI(MBB, MI, DL, TII->get(RISCV::AND))
-        .addReg(RISCV::X31, RegState::Define)
-        .addReg(SCSPReg)
-        .addReg(RISCV::X31);
-    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-        .addExternalSymbol(MF.createExternalSymbolName("beqz t6, 12"))
-        .addImm(1)
-        .addExternalSymbol("");
-    BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
-        .addReg(SCSPReg, RegState::Define)
-        .addReg(SCSPReg)
-        .addImm(SlotSize)
-        .setMIFlag(MachineInstr::FrameSetup);
-    BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
-        .addReg(RAReg)
-        .addReg(SCSPReg)
-        .addImm(-SlotSize)
-        .setMIFlag(MachineInstr::FrameSetup);
-    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-        .addExternalSymbol(MF.createExternalSymbolName("j 18"))
-        .addImm(1)
-        .addExternalSymbol("");
-    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-        .addExternalSymbol(MF.createExternalSymbolName("li t6, 0xffffffff"))
-        .addImm(1)
-        .addExternalSymbol("");
-    BuildMI(MBB, MI, DL, TII->get(RISCV::AND))
-        .addReg(RISCV::X31, RegState::Define)
-        .addReg(SCSPReg)
-        .addReg(RISCV::X31)
-        .setMIFlag(MachineInstr::FrameSetup);
-    BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::HSV_D : RISCV::HSV_W))
-        .addReg(RAReg)
-        .addReg(RISCV::X31)
-        .setMIFlag(MachineInstr::FrameSetup);
-    BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
-        .addReg(SCSPReg, RegState::Define)
-        .addReg(SCSPReg)
-        .addImm(SlotSize)
+        .addImm(SlotSize *2)
         .setMIFlag(MachineInstr::FrameSetup);
   //}
-  */
 
 
 
