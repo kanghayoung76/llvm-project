@@ -67,94 +67,127 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
   // Store return address to shadow call stack
   // addi    gp, gp, [4|8]
   // s[w|d]  ra, -[4|8](gp)
-  BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
-      .addReg(SCSPReg, RegState::Define)
-      .addReg(SCSPReg)
-      .addImm(SlotSize)
-      .setMIFlag(MachineInstr::FrameSetup);
+  //
 
-  Function &F = MF.getFunction();
-    std::vector<std::string> substrings = {
-	"inner_handler",
-	"custom_memset",
-	"custom_memcpy",
-	"_genesis",
-	"mapping",
-    };
-
-
-        bool found = false;
-    	for (const auto& substring : substrings) {
-        	if (F.getName().find(substring) != std::string::npos) {
-            		found = true;
-            		break;
-                }
-       }
-
-     if (!found){
-//      if(F.getName() == "debug_vm_pgtable"){
-/*      
-	        BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
-		      .addReg(RAReg)
-		      .addReg(SCSPReg)
-		      .addImm(-SlotSize)
-		      .setMIFlag(MachineInstr::FrameSetup);
-		      */
-
-                BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
-                        .addReg(RISCV::X2)
-                        .addReg(RISCV::X2)
-                        .addImm(-16);
-		  BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
-		      .addReg(RISCV::X10)
-		      .addReg(RISCV::X2)
-		      .addImm(0)
-		      .setMIFlag(MachineInstr::FrameSetup);
-                  BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
-                      .addReg(RISCV::X11)
-                      .addReg(RISCV::X2)
-                      .addImm(8)
-                      .setMIFlag(MachineInstr::FrameSetup);
+  /*
+BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
+.addReg(RISCV::X2, RegState::Define)
+.addReg(RISCV::X2)
+.addImm(-SlotSize *3)
+.setMIFlag(MachineInstr::FrameSetup);
+BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
+.addReg(RISCV::X31)
+.addReg(RISCV::X2)
+.addImm(0)
+.setMIFlag(MachineInstr::FrameSetup);
+BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
+.addReg(RISCV::X30)
+.addReg(RISCV::X2)
+.addImm(8)
+.setMIFlag(MachineInstr::FrameSetup);
+              BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
+                  .addReg(RISCV::X10)
+                  .addReg(RISCV::X2)
+                  .addImm(16)
+                  .setMIFlag(MachineInstr::FrameSetup);
 
 
-  
-	  	BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
-    			.addReg(RISCV::X10)
-    			.addReg(RISCV::X0)
-    			.addImm(20);   
-	  	BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-			.addExternalSymbol(MF.createExternalSymbolName("addi    a1, ra, 0"))
-    			.addImm(1)
-              		.addExternalSymbol("");
-          	BuildMI(MBB, MI, DL, TII->get(RISCV::PseudoCALL))
-                	.addExternalSymbol("_genesis_entry", RISCVII::MO_CALL)
-	         	.setMIFlag(MachineInstr::FrameSetup);
+BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+    .addExternalSymbol(MF.createExternalSymbolName("li t6, 0xffffffd660000000"))
+    .addImm(1)
+    .addExternalSymbol("");
+BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+    .addExternalSymbol(MF.createExternalSymbolName("li t5, 0xffffffd640000000"))
+    .addImm(1)
+    .addExternalSymbol("");
+BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+    .addExternalSymbol(MF.createExternalSymbolName("bltu gp, t5, 3f"))
+    .addImm(1)
+    .addExternalSymbol("");
+BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+    .addExternalSymbol(MF.createExternalSymbolName("bgeu gp, t6, 3f"))
+    .addImm(1)
+    .addExternalSymbol("");
+BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+    .addExternalSymbol(MF.createExternalSymbolName("j 1f"))
+    .addImm(1)
+    .addExternalSymbol("");
+BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+    .addExternalSymbol(MF.createExternalSymbolName("3:"))
+    .addImm(1)
+    .addExternalSymbol("");
+BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
+    .addReg(SCSPReg, RegState::Define)
+    .addReg(SCSPReg)
+    .addImm(SlotSize)
+    .setMIFlag(MachineInstr::FrameSetup);
+BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
+    .addReg(RAReg)
+    .addReg(SCSPReg)
+    .addImm(-SlotSize)
+    .setMIFlag(MachineInstr::FrameSetup);
+BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+    .addExternalSymbol(MF.createExternalSymbolName("j 2f"))
+    .addImm(1)
+    .addExternalSymbol("");
+
+BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+    .addExternalSymbol(MF.createExternalSymbolName("1:"))
+    .addImm(1)
+    .addExternalSymbol("");
+    BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
+        .addReg(SCSPReg, RegState::Define)
+        .addReg(SCSPReg)
+        .addImm(SlotSize)
+        .setMIFlag(MachineInstr::FrameSetup);
+            BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
+                    .addReg(RISCV::X10)
+                    .addReg(RISCV::X0)
+                    .addImm(1);
+            BuildMI(MBB, MI, DL, TII->get(RISCV::PseudoCALL))
+                    .addExternalSymbol("sbi_pmp_update", RISCVII::MO_CALL)
+                    .setMIFlag(MachineInstr::FrameSetup);
+            BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
+                  .addReg(RAReg)
+                  .addReg(SCSPReg)
+                  .addImm(-SlotSize)
+                  .setMIFlag(MachineInstr::FrameSetup);
+            BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
+                    .addReg(RISCV::X10)
+                    .addReg(RISCV::X0)
+                    .addImm(0);
+            BuildMI(MBB, MI, DL, TII->get(RISCV::PseudoCALL))
+                    .addExternalSymbol("sbi_pmp_update", RISCVII::MO_CALL)
+                    .setMIFlag(MachineInstr::FrameSetup);
 
 
-
-  		BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
-		      .addReg(RISCV::X10, RegState::Define)
-		      .addReg(RISCV::X2)
-		      .addImm(0)
-		      .setMIFlag(MachineInstr::FrameSetup);
+    BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
+        .addExternalSymbol(MF.createExternalSymbolName("2:"))
+        .addImm(1)
+        .addExternalSymbol("");
+    BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
+        .addReg(RISCV::X31)
+        .addReg(RISCV::X2)
+        .addImm(0)
+        .setMIFlag(MachineInstr::FrameSetup);
+    BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
+        .addReg(RISCV::X30)
+        .addReg(RISCV::X2)
+        .addImm(8)
+        .setMIFlag(MachineInstr::FrameSetup);
                 BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
-                      .addReg(RISCV::X11, RegState::Define)
-                      .addReg(RISCV::X2)
-                      .addImm(8)
-		      .setMIFlag(MachineInstr::FrameSetup);
-                BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
-                        .addReg(RISCV::X2)
-                        .addReg(RISCV::X2)
-                        .addImm(16);
+                  .addReg(RISCV::X10, RegState::Define)
+                  .addReg(RISCV::X2)
+                  .addImm(16)
+                  .setMIFlag(MachineInstr::FrameSetup);
+    BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
+        .addReg(RISCV::X2, RegState::Define)
+        .addReg(RISCV::X2)
+        .addImm(SlotSize *3)
+        .setMIFlag(MachineInstr::FrameSetup);
+    */
 
-    }
-    else{
-	      BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
-		      .addReg(RAReg)
-		      .addReg(SCSPReg)
-		      .addImm(-SlotSize)
-		      .setMIFlag(MachineInstr::FrameSetup);
-    }
+
 
   // Emit a CFI instruction that causes SlotSize to be subtracted from the value
   // of the shadow stack pointer when unwinding past this frame.
@@ -201,6 +234,7 @@ static void emitSCSEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
   // l[w|d]  ra, -[4|8](gp)
   // addi    gp, gp, -[4|8]
 
+  /*
   BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
       .addReg(RAReg, RegState::Define)
       .addReg(SCSPReg)
@@ -211,6 +245,7 @@ static void emitSCSEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
       .addReg(SCSPReg)
       .addImm(-SlotSize)
       .setMIFlag(MachineInstr::FrameDestroy);
+      */
 
 
   // Restore the SCS pointer
