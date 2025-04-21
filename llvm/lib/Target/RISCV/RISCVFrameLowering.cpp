@@ -100,11 +100,11 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
         .setMIFlag(MachineInstr::FrameSetup);
 
     BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-	.addExternalSymbol(MF.createExternalSymbolName("li t6, 0xffffffd680000000"))
+	.addExternalSymbol(MF.createExternalSymbolName("li t6, 0xffffffd660000000"))
     	.addImm(1)
         .addExternalSymbol("");
     BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
-        .addExternalSymbol(MF.createExternalSymbolName("li t5, 0xffffffd660000000"))
+        .addExternalSymbol(MF.createExternalSymbolName("li t5, 0xffffffd640000000"))
         .addImm(1)
         .addExternalSymbol("");
     BuildMI(MBB, MI, DL, TII->get(RISCV::INLINEASM))
