@@ -40,6 +40,15 @@ static const Register AllPopRegs[] = {
 
 //extern void _sfk_shadow_stack(void);
 
+    std::vector<std::string> substrings = {
+        "inner_handler",
+        "custom_memset",
+        "custom_memcpy",
+        "_genesis",
+        "mapping",
+    };
+
+
 // For now we use x3, a.k.a gp, as pointer to shadow call stack.
 // User should not use x3 in their asm.
 static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
@@ -74,15 +83,6 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
       .setMIFlag(MachineInstr::FrameSetup);
 
   Function &F = MF.getFunction();
-    std::vector<std::string> substrings = {
-	"inner_handler",
-	"custom_memset",
-	"custom_memcpy",
-	"_genesis",
-	"mapping",
-    };
-
-
         bool found = false;
     	for (const auto& substring : substrings) {
         	if (F.getName().find(substring) != std::string::npos) {
@@ -90,6 +90,9 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
             		break;
                 }
        }
+
+	unsigned RegList[] = { RISCV::X10, RISCV::X11, RISCV::X12, RISCV::X13, RISCV::X14, RISCV::X15, RISCV::X16, RISCV::X17 };
+	int offset = 0;
 
      if (!found){
 //      if(F.getName() == "debug_vm_pgtable"){
@@ -104,17 +107,15 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
                 BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
                         .addReg(RISCV::X2)
                         .addReg(RISCV::X2)
-                        .addImm(-16);
-		  BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
-		      .addReg(RISCV::X10)
-		      .addReg(RISCV::X2)
-		      .addImm(0)
-		      .setMIFlag(MachineInstr::FrameSetup);
-                  BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
-                      .addReg(RISCV::X11)
-                      .addReg(RISCV::X2)
-                      .addImm(8)
-                      .setMIFlag(MachineInstr::FrameSetup);
+                        .addImm(-SlotSize *8);
+		for (unsigned Reg : RegList) {
+ 		   BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
+		        .addReg(Reg)
+		        .addReg(RISCV::X2)     // 스택 포인터 기준으로 저장
+		        .addImm(offset)
+		        .setMIFlag(MachineInstr::FrameSetup);
+		    offset += 8; // 64비트 기준, 각 레지스터 8바이트 간격
+		}
 
 
   
@@ -130,30 +131,20 @@ static void emitSCSPrologue(MachineFunction &MF, MachineBasicBlock &MBB,
                 	.addExternalSymbol("_genesis_entry", RISCVII::MO_CALL)
 	         	.setMIFlag(MachineInstr::FrameSetup);
 
-
-
-  		BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
-		      .addReg(RISCV::X10, RegState::Define)
-		      .addReg(RISCV::X2)
-		      .addImm(0)
-		      .setMIFlag(MachineInstr::FrameSetup);
-                BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
-                      .addReg(RISCV::X11, RegState::Define)
-                      .addReg(RISCV::X2)
-                      .addImm(8)
-		      .setMIFlag(MachineInstr::FrameSetup);
+		offset=0;
+                for (unsigned Reg : RegList) {
+                   BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
+                        .addReg(Reg)
+                        .addReg(RISCV::X2)     // 스택 포인터 기준으로 저장
+                        .addImm(offset)
+                        .setMIFlag(MachineInstr::FrameSetup);
+                    offset += 8; // 64비트 기준, 각 레지스터 8바이트 간격
+                }
                 BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
                         .addReg(RISCV::X2)
                         .addReg(RISCV::X2)
-                        .addImm(16);
+                        .addImm(SlotSize *8);
 
-    }
-    else{
-	      BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::SD : RISCV::SW))
-		      .addReg(RAReg)
-		      .addReg(SCSPReg)
-		      .addImm(-SlotSize)
-		      .setMIFlag(MachineInstr::FrameSetup);
     }
 
   // Emit a CFI instruction that causes SlotSize to be subtracted from the value
@@ -201,11 +192,22 @@ static void emitSCSEpilogue(MachineFunction &MF, MachineBasicBlock &MBB,
   // l[w|d]  ra, -[4|8](gp)
   // addi    gp, gp, -[4|8]
 
+    Function &F = MF.getFunction();
+        bool found = false;
+        for (const auto& substring : substrings) {
+                if (F.getName().find(substring) != std::string::npos) {
+                        found = true;
+                        break;
+                }
+       }
+
+	if(!found){
   BuildMI(MBB, MI, DL, TII->get(IsRV64 ? RISCV::LD : RISCV::LW))
       .addReg(RAReg, RegState::Define)
       .addReg(SCSPReg)
       .addImm(-SlotSize)
       .setMIFlag(MachineInstr::FrameDestroy);
+	}
   BuildMI(MBB, MI, DL, TII->get(RISCV::ADDI))
       .addReg(SCSPReg, RegState::Define)
       .addReg(SCSPReg)
